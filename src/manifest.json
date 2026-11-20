@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "아이밸런스 EDI 차트생성기",
+  "short_name": "EDI 차트생성기",
+  "description": "TEMO 모아레 결과지 옆 사이드 패널에서 EDI 문구를 만듭니다. 원장님 차팅 틀만 이 PC에 저장하고, 환자 정보는 저장하거나 전송하지 않습니다.",
+  "version": "0.3.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAskQ3zQ/7rpKTWS7kXlaMsYFetdpDxsGjI9LYFkJmFciwNMONmIZuODn9tuxqBD/lVphTxmw2TEiD2F7O+pyz1VGwdUDxHUW++G038kxbReW57igQxxz+dLP8lk2l99mjDdGccA5m7RivhkO7G5Up5ioyf5Q0WImVPyPUXn4Y1q1Bni1BukwHnbX6qXjFRXI8/eZlSsJo6NBWUMO3IuE4mo/1hRDAgwHhNxithkYGgM5u56Ieeo8FSsNEVo3m2MNmJzaVc7ccYkDMO55uZcIfzlVhcWp3maAwWUoc3eb/9WDHQAUxghHkxVjWNfNLdVuKLXvlwrfUr0Qj24A54uF37QIDAQAB",
+  "minimum_chrome_version": "121",
+  "permissions": [
+    "sidePanel",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "sw.js"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "EDI 차트생성기 열기",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "default-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'; frame-src 'none'; img-src 'self' data:"
+  }
+}

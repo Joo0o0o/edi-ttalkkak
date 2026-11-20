@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="description" content="아이밸런스 모아레 결과지와 진료 내용으로 EDI 문구를 만드는 도구 __VERSION__">
+<title>아이밸런스 EDI 차트생성기</title>
+<style>/*__STYLE__*/</style>
+</head>
+<body data-frames="loading">
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-name">아이밸런스</span>
+    <h1>EDI 차트생성기 <span class="ver">v__VERSION__</span></h1>
+  </div>
+  <p class="tagline">모아레 결과지의 수치와 진료 내용으로 EDI 문구를 만듭니다. 환자 정보는 저장하거나 전송하지 않고, 원장님 차팅 틀만 이 PC에 저장합니다.</p>
+  <button type="button" id="reset" class="ghost">새 환자</button>
+</header>
+
+<main class="layout">
+  <div class="inputs">
+    <section class="card frame-card" id="frame-card" aria-labelledby="h-frame">
+      <div class="frame-head">
+        <h2 id="h-frame">원장님 차팅 틀</h2>
+        <span class="frame-state" id="frame-state" role="status" aria-live="polite">불러오는 중…</span>
+        <button type="button" class="link" id="frame-edit" hidden>틀 바꾸기</button>
+      </div>
+      <p class="frame-expiry" id="frame-expiry" hidden></p>
+      <div id="frame-setup" hidden>
+        <p class="hint">병원마다 같은 EDI 문구가 되지 않도록, 원장님 문체로 만든 틀을 처음 한 번 저장합니다. 틀을 저장하기 전에는 복사할 수 없습니다. 틀은 이 PC의 Chrome에만 저장되고, 환자 정보는 저장하지 않습니다. 같은 틀을 오래 쓰면 문구가 굳어지므로 틀은 저장 후 30일이 되면 자동으로 지워집니다(매달 새로 만들기).</p>
+        <ol class="steps">
+          <li>
+            <p class="step-title">AI 요청문 복사</p>
+            <p class="hint">원장님이 쓰는 AI(ChatGPT·Claude·Gemini 등) 대화창에 붙여넣어 보냅니다. 평소 쓰신 EDI 문구가 있으면 맨 아래에 3~5개를 붙이면 그 문체를 따르고, 없으면 그대로 보내도 요청문에 담긴 문체 조건으로 이 병원만의 틀을 만듭니다. 문구를 붙일 때는 환자 이름·주민번호·차트번호·날짜를 지우세요.</p>
+            <div class="step-actions">
+              <button type="button" class="secondary" id="prompt-copy">AI 요청문 복사</button>
+            </div>
+            <p class="frame-status" id="prompt-status" role="status" aria-live="polite"></p>
+            <details class="prompt-box" id="prompt-box">
+              <summary>요청문 보기</summary>
+              <textarea id="prompt-text" rows="8" readonly spellcheck="false" aria-label="AI 요청문"></textarea>
+            </details>
+          </li>
+          <li>
+            <p class="step-title"><label for="frame-response">AI 답 붙여넣기</label></p>
+            <p class="hint">AI가 준 답을 그대로 붙여넣으면 아래 1차·2차 틀 칸(A·B·C 세 벌)이 채워집니다.</p>
+            <textarea id="frame-response" rows="4" spellcheck="false" autocomplete="off" placeholder="=== 1차 틀 ===&#10;…&#10;=== 2차 틀 ===&#10;…"></textarea>
+            <p class="frame-status" id="response-status" role="status" aria-live="polite"></p>
+          </li>
+          <li>
+            <p class="step-title">확인하고 저장</p>
+            <p class="hint">{변수} 자리에 환자 값이 들어가고, [[ ]] 안은 값이 없으면 빠집니다. 가상 환자로 만든 미리보기를 확인하고, 필요하면 틀을 직접 고칩니다.</p>
+            <details class="vars">
+              <summary>쓸 수 있는 변수</summary>
+              <ul id="frame-vars"></ul>
+            </details>
+            <div class="frame-draft">
+              <label for="frame1">1차 틀 <span class="opt">한 벌은 꼭 · 여러 벌이면 환자마다 돌아가며 씀</span></label>
+              <div class="variant-tabs" role="group" aria-label="1차 틀 벌">
+                <button type="button" data-tab-cycle="1" data-tab-index="0" aria-pressed="true">A</button>
+                <button type="button" data-tab-cycle="1" data-tab-index="1" aria-pressed="false">B</button>
+                <button type="button" data-tab-cycle="1" data-tab-index="2" aria-pressed="false">C</button>
+              </div>
+              <textarea id="frame1" rows="6" spellcheck="false" autocomplete="off"></textarea>
+              <ul class="msgs blocks" id="frame1-errors" aria-label="1차 틀 저장을 막는 항목"></ul>
+              <ul class="msgs notes" id="frame1-warnings" aria-label="1차 틀 확인할 항목"></ul>
+              <p class="sample-head"><span>미리보기 (가상 환자)</span> <span class="count" id="frame1-count"></span></p>
+              <p class="auto-text sample" id="frame1-preview"></p>
+              <p class="sample-head"><span>값이 빈 경우 (수상일·목표·다음 평가·NRS 없음)</span> <span class="count" id="frame1-count-sparse"></span></p>
+              <p class="auto-text sample" id="frame1-preview-sparse"></p>
+            </div>
+            <div class="frame-draft">
+              <label for="frame2">2차 틀 <span class="opt">한 벌은 꼭 · 여러 벌이면 환자마다 돌아가며 씀</span></label>
+              <div class="variant-tabs" role="group" aria-label="2차 틀 벌">
+                <button type="button" data-tab-cycle="2" data-tab-index="0" aria-pressed="true">A</button>
+                <button type="button" data-tab-cycle="2" data-tab-index="1" aria-pressed="false">B</button>
+                <button type="button" data-tab-cycle="2" data-tab-index="2" aria-pressed="false">C</button>
+              </div>
+              <textarea id="frame2" rows="6" spellcheck="false" autocomplete="off"></textarea>
+              <ul class="msgs blocks" id="frame2-errors" aria-label="2차 틀 저장을 막는 항목"></ul>
+              <ul class="msgs notes" id="frame2-warnings" aria-label="2차 틀 확인할 항목"></ul>
+              <p class="sample-head"><span>미리보기 (가상 환자)</span> <span class="count" id="frame2-count"></span></p>
+              <p class="auto-text sample" id="frame2-preview"></p>
+              <p class="sample-head"><span>값이 빈 경우 (치료 종료, 소견·NRS 없음)</span> <span class="count" id="frame2-count-sparse"></span></p>
+              <p class="auto-text sample" id="frame2-preview-sparse"></p>
+            </div>
+            <div class="step-actions">
+              <button type="button" class="primary inline" id="frame-save" aria-disabled="true">틀 저장</button>
+              <button type="button" class="link" id="frame-cancel" hidden>바꾸지 않고 닫기</button>
+            </div>
+            <p class="frame-status" id="frame-save-status" role="status" aria-live="polite"></p>
+            <p class="visually-hidden" id="frame-check-live" role="status" aria-live="polite"></p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-cycle">
+      <h2 id="h-cycle">회차</h2>
+      <div class="seg" role="group" aria-labelledby="h-cycle">
+        <button type="button" data-cycle="1" aria-pressed="true">1차</button>
+        <button type="button" data-cycle="2" aria-pressed="false">2차</button>
+      </div>
+      <p class="hint">회차는 직접 고릅니다. 3차는 없습니다.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-paste">
+      <h2 id="h-paste">모아레 결과</h2>
+      <p class="hint" data-standalone-only>TEMO 뷰어의 ‘복사하기’ 내용을 그대로 붙여넣습니다. 수치는 바꾸지 않고 그대로 씁니다.</p>
+      <p class="hint" data-ext-only hidden>TEMO 모아레 결과지를 연 상태에서 ‘결과지에서 가져오기’를 누르면, 그 결과지의 ‘복사하기’ 문구가 그대로 들어옵니다. 직접 붙여넣어도 됩니다.</p>
+      <p class="hint" data-only="2" hidden>1차 칸에는 이전 1차 검사일의 결과를, 2차 칸에는 이번 검사 결과를 각각 넣습니다. 이전 EDI 문구는 다시 쓰지 않습니다.</p>
+      <div class="paste-grid">
+        <div class="paste">
+          <div class="paste-head">
+            <label for="paste1" id="paste1-label">검사 결과</label>
+            <button type="button" class="import" id="import1" data-import="1" data-ext-only hidden>결과지에서 가져오기</button>
+          </div>
+          <p class="import-status" id="import1-status" role="status" aria-live="polite" data-ext-only hidden></p>
+          <div class="import-choices" id="import1-choices" hidden></div>
+          <textarea id="paste1" rows="7" spellcheck="false" autocomplete="off" placeholder="기준점 수평도&#10;어깨 : … / 골반 : …&#10;…"></textarea>
+          <ul class="parsed" id="parsed1" aria-label="읽은 값"></ul>
+        </div>
+        <div class="paste" data-only="2" hidden>
+          <div class="paste-head">
+            <label for="paste2" id="paste2-label">2차 검사 결과 (이번 검사)</label>
+            <button type="button" class="import" id="import2" data-import="2" data-ext-only hidden>결과지에서 가져오기</button>
+          </div>
+          <p class="import-status" id="import2-status" role="status" aria-live="polite" data-ext-only hidden></p>
+          <div class="import-choices" id="import2-choices" hidden></div>
+          <textarea id="paste2" rows="7" spellcheck="false" autocomplete="off" placeholder="2차 검사일의 ‘복사하기’ 내용"></textarea>
+          <ul class="parsed" id="parsed2" aria-label="읽은 값"></ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-reason">
+      <h2 id="h-reason">검사시행 사유</h2>
+      <div class="row">
+        <label class="field">수상일 <span class="opt">선택</span>
+          <input type="date" id="injuryDate">
+        </label>
+        <label class="field">사고 내용
+          <input type="text" id="accident" maxlength="60" autocomplete="off" spellcheck="false">
+        </label>
+      </div>
+
+      <div class="field">
+        <span class="label" id="parts-label">통증 부위</span>
+        <div class="chips" role="group" aria-labelledby="parts-label">
+          <button type="button" class="chip" data-part="neck" aria-pressed="false">목</button>
+          <button type="button" class="chip" data-part="shoulder" aria-pressed="false">어깨</button>
+          <button type="button" class="chip" data-part="waist" aria-pressed="false">허리</button>
+          <button type="button" class="chip" data-part="knee" aria-pressed="false">무릎</button>
+          <button type="button" class="chip" data-part="other" aria-pressed="false">기타</button>
+        </div>
+        <div id="part-rows" class="part-rows"></div>
+        <p class="hint">어깨·무릎은 좌측/우측/양측을 꼭 고릅니다. NRS는 이번 회차 점수만 씁니다. 혈자리는 초기값이 선택되어 있으니 실제 시술한 혈자리만 남기고, 없는 것은 직접 적습니다.</p>
+      </div>
+
+      <div class="stack" data-only="2" hidden>
+        <div class="row">
+          <label class="field">1차 검사일 <span class="opt">선택</span>
+            <input type="date" id="firstExamDate">
+          </label>
+        </div>
+        <div class="field">
+          <span class="label" id="prior-label">1차 이후 받은 치료</span>
+          <div class="chips" role="group" aria-labelledby="prior-label">
+            <button type="button" class="chip" data-tx-group="priorTx" data-tx="acu" aria-pressed="false">침</button>
+            <button type="button" class="chip" data-tx-group="priorTx" data-tx="pharm" aria-pressed="false">약침</button>
+            <button type="button" class="chip" data-tx-group="priorTx" data-tx="moxa" aria-pressed="false">뜸</button>
+            <button type="button" class="chip" data-tx-group="priorTx" data-tx="chuna" aria-pressed="false">추나</button>
+          </div>
+        </div>
+      </div>
+
+      <label class="field">확인 목적
+        <input type="text" id="purpose" maxlength="80" autocomplete="off" spellcheck="false">
+      </label>
+    </section>
+
+    <section class="card" data-only="2" hidden aria-labelledby="h-opinion">
+      <h2 id="h-opinion">판독 소견 <span class="opt">원장님 직접 작성 · 1~2줄</span></h2>
+      <textarea id="opinion" rows="2" autocomplete="off" spellcheck="false" aria-labelledby="h-opinion"></textarea>
+      <p class="hint">1차→2차 수치 비교는 자동으로 들어갑니다. 소견 문장은 자동으로 만들지 않습니다.</p>
+    </section>
+
+    <section class="card" aria-labelledby="plan-title">
+      <h2 id="plan-title">치료계획</h2>
+      <div class="field" data-only="1">
+        <span class="label" id="plan-tx-label">치료</span>
+        <div class="chips" role="group" aria-labelledby="plan-tx-label">
+          <button type="button" class="chip" data-tx-group="planTx" data-tx="acu" aria-pressed="false">침</button>
+          <button type="button" class="chip" data-tx-group="planTx" data-tx="pharm" aria-pressed="false">약침</button>
+          <button type="button" class="chip" data-tx-group="planTx" data-tx="moxa" aria-pressed="false">뜸</button>
+          <button type="button" class="chip" data-tx-group="planTx" data-tx="chuna" aria-pressed="false">추나</button>
+        </div>
+        <p class="hint">침·약침·뜸은 고른 통증 부위에 시술하는 것으로 기록됩니다. 추나는 부위 없이 기록됩니다.</p>
+      </div>
+      <div data-only="2" hidden>
+        <div class="field">
+          <span class="label" id="judge-label">판정</span>
+          <div class="seg" role="group" aria-labelledby="judge-label">
+            <button type="button" data-judgement="호전" aria-pressed="false">호전</button>
+            <button type="button" data-judgement="유지" aria-pressed="false">유지</button>
+            <button type="button" data-judgement="악화" aria-pressed="false">악화</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="cont-label">치료</span>
+          <div class="seg" role="group" aria-labelledby="cont-label">
+            <button type="button" data-continuation="continue" aria-pressed="false">치료 지속</button>
+            <button type="button" data-continuation="stop" aria-pressed="false">치료 종료</button>
+          </div>
+        </div>
+      </div>
+      <label class="field">치료 목표
+        <input type="text" id="goal" maxlength="80" autocomplete="off" spellcheck="false">
+      </label>
+      <div class="field">
+        <span class="label" id="next-label">다음 평가 시점</span>
+        <div class="seg wrap" role="group" aria-labelledby="next-label" id="next-group">
+          <button type="button" data-next="2주 후" aria-pressed="false">2주 후</button>
+          <button type="button" data-next="3주 후" aria-pressed="false">3주 후</button>
+          <button type="button" data-next="4주 후" aria-pressed="false">4주 후</button>
+          <button type="button" data-next="custom" aria-pressed="false">직접 입력</button>
+        </div>
+        <input type="text" id="nextCustom" maxlength="40" autocomplete="off" spellcheck="false" placeholder="예: 치료 10회 후" aria-label="다음 평가 시점 직접 입력" hidden>
+      </div>
+    </section>
+  </div>
+
+  <aside class="card preview" aria-labelledby="h-preview">
+    <div class="preview-head">
+      <h2 id="h-preview">EDI 문구</h2>
+      <span id="count" class="count">0 / 350자</span>
+    </div>
+    <div class="meter" aria-hidden="true"><div id="meter-bar"></div></div>
+    <label class="switch">
+      <input type="checkbox" id="limitOn">
+      <span>350자 제한 <strong id="limit-state">꺼짐</strong></span>
+    </label>
+    <p class="frame-badge" id="frame-badge"></p>
+    <div class="variant-bar" id="variant-bar" role="group" aria-label="이번 환자에게 쓸 틀" hidden></div>
+    <div id="edi-text" class="edi-text" tabindex="0" role="textbox" aria-readonly="true" aria-multiline="true" aria-label="복사될 EDI 문구"></div>
+    <textarea id="edi-manual" class="edi-manual" rows="10" spellcheck="false" autocomplete="off" aria-label="EDI 문구 직접 수정" hidden></textarea>
+    <div class="edit-bar">
+      <span class="edit-hint" id="text-edit-hint" hidden>틀을 저장한 뒤 고칠 수 있습니다</span>
+      <button type="button" class="link" id="text-reword" hidden>다른 표현으로</button>
+      <button type="button" class="link" id="text-edit">문구 직접 수정</button>
+      <button type="button" class="link" id="text-revert" hidden>자동 문구로 되돌리기</button>
+    </div>
+    <ul id="blocks" class="msgs blocks" aria-label="복사를 막는 항목"></ul>
+    <ul id="notes" class="msgs notes" aria-label="확인할 항목"></ul>
+    <button type="button" id="copy" class="primary" aria-disabled="true">EDI 문구 복사</button>
+    <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
+    <p class="foot">수치는 붙여넣은 결과지 값을 그대로 씁니다. 판독 소견·판정·회차는 자동으로 만들지 않습니다. 직접 고친 문구도 결과지 수치가 그대로 있는지 확인한 뒤에만 복사됩니다. 복사 전 내용을 꼭 확인하세요.</p>
+  </aside>
+</main>
+<script>/*__SCRIPT__*/</script>
+</body>
+</html>
